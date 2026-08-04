@@ -1,4 +1,4 @@
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from tools import calculate_returns, calculate_volatility, calculate_drawdown, calculate_correlation
 import pandas as pd
 
