@@ -1,10 +1,16 @@
 import asyncio
+import sys
+from pathlib import Path
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+SERVER_SCRIPT = ROOT_DIR / "mcp_servers" / "pandas_server" / "server.py"
+
 server_params = StdioServerParameters(
-    command="python",
-    args=["mcp_servers/pandas_server/server.py"],
+    command=sys.executable,          # the exact interpreter running this script,
+    args=[str(SERVER_SCRIPT)],       # not a bare "python" that may not be on PATH
+    cwd=str(ROOT_DIR),
 )
 
 async def main():

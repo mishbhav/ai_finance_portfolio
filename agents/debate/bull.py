@@ -1,4 +1,4 @@
-from debate.base_debate_agent import DebateAgent
+from agents.debate.base_debate_agent import DebateAgent
 
 class BullAgent(DebateAgent):
     name = "bull_agent"

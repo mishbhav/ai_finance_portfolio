@@ -1,7 +1,14 @@
+import sys
+from pathlib import Path
+
+ROOT_DIR = str(Path(__file__).resolve().parent.parent)
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 from agents.debate.bull import BullAgent
 from agents.debate.bear import BearAgent
 from agents.debate.risk_parity import RiskParityAgent
-from agents.judge import JudgeAgent
+from agents.judge_agent import JudgeAgent
 
 MAX_REVISION_ROUNDS = 2
 QUERY = "should I hold tech stocks right now?"
@@ -16,16 +23,12 @@ for round_num in range(MAX_REVISION_ROUNDS):
         break
     print(f"Round {round_num + 1}: revising {[a['stance'] for a in result['weak_arguments']]}")
 
-    # TODO: for each weak argument, call its agent's .run() again with
-    # revision_feedback=that argument's justification, and replace the
-    # corresponding entry in `arguments` with the revised version
     for weak_arg in result["weak_arguments"]:
         agent = agents[weak_arg["stance"]]
         revised_argument = agent.run({
             "query": QUERY,
             "revision_feedback": weak_arg["justification"]
         })
-        # Replace the old argument with the revised one
         for i, arg in enumerate(arguments):
             if arg["stance"] == weak_arg["stance"]:
                 arguments[i] = revised_argument

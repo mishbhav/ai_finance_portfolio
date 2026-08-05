@@ -1,5 +1,5 @@
 from agents.base import Agent
-from judge import score_argument, synthesize_decision
+from agents.judge import score_argument, synthesize_decision
 
 class JudgeAgent(Agent):
     name = "judge_agent"

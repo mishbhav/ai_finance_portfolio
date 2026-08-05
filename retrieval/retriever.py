@@ -17,5 +17,3 @@ def search(query: str, k: int = 3) -> list[str]:
     retriever = get_retriever(k=k)
     results = retriever.invoke(query)
     return [doc.page_content for doc in results]    
-
-print(search("is diversification effective during a crash?"))

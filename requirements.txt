@@ -2,11 +2,13 @@ pandas
 numpy
 python-dotenv
 mcp
-mcp[cli]
+mcp[cli]>1.2
 langchain
+langchain-text-splitters
 langchain-huggingface
 langchain-community
 langchain-chroma
 chromadb
 sentence-transformers
 anthropic
+streamlit

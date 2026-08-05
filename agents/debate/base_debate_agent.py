@@ -1,5 +1,5 @@
-from base import Agent
-from llm_client import call_llm
+from agents.base import Agent
+from agents.llm_client import call_llm
 from retrieval.retriever import search
 
 class DebateAgent(Agent):
