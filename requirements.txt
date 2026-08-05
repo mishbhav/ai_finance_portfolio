@@ -3,3 +3,10 @@ numpy
 python-dotenv
 mcp
 mcp[cli]
+langchain
+langchain-huggingface
+langchain-community
+langchain-chroma
+chromadb
+sentence-transformers
+anthropic
