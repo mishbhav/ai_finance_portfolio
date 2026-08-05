@@ -2,7 +2,7 @@ from debate.bull import BullAgent
 from debate.bear import BearAgent
 from debate.risk_parity import RiskParityAgent
 from explainer import ExplainerAgent
-from judge import JudgeAgent
+from judge_agent import JudgeAgent
 
 for cls in [BullAgent, BearAgent, RiskParityAgent, ExplainerAgent, JudgeAgent]:
     agent = cls()

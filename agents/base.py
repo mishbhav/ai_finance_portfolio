@@ -7,7 +7,7 @@ class Agent(ABC):
     Ensures structural polymorphism so the orchestrator can call any agent uniformly.
     """
     
-    def __init__(self, name: str, description: str):
+    def __init__(self, name: str = None, description: str = None):
         """
         Initializes the agent with required metadata.
         
