@@ -15,8 +15,10 @@ class Agent(ABC):
             name: Unique identifier for the agent instance.
             description: Brief summary of the agent's specific responsibility.
         """
-        self.name = name
-        self.description = description
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
 
     @abstractmethod
     def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:

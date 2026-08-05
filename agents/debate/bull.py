@@ -1,4 +1,4 @@
-from agents.debate.base_debate_agent import DebateAgent
+from debate.base_debate_agent import DebateAgent
 
 class RiskParityAgent(DebateAgent):
     name = "risk_parity_agent"
