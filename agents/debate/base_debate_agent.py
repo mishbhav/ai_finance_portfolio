@@ -7,21 +7,13 @@ class DebateAgent(Agent):
 
     def run(self, input_data: dict) -> dict:
         query = input_data["query"]
-
-        # 1. ACT (single call, no loop yet): retrieve evidence for the raw query
+        revision_feedback = input_data.get("revision_feedback")  # None on first attempt
         evidence = search(query, k=3)
-
-        # 2. Build the user message the LLM will see: the query plus
-        #    the retrieved evidence, clearly labeled so the model
-        #    can distinguish "the question" from "supporting material"
         evidence_block = "\n\n".join(f"- {chunk}" for chunk in evidence)
+
         user_message = f"Query: {query}\n\nRetrieved evidence:\n{evidence_block}"
+        if revision_feedback:
+            user_message += f"\n\nA reviewer flagged your previous argument as weakly supported: {revision_feedback}\nRevise your argument to rely more strictly on the evidence given."
 
-        # 3. Generate the argument using this agent's stance
         argument = call_llm(system_prompt=self.stance_prompt, user_message=user_message)
-
-        return {
-            "stance": self.name,
-            "argument": argument,
-            "evidence": evidence,
-        }
+        return {"stance": self.name, "argument": argument, "evidence": evidence}
