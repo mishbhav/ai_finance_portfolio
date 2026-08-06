@@ -7,6 +7,7 @@ from agents.data_analyst import DataAnalystAgent
 from agents.explainer import ExplainerAgent
 from simulation.monte_carlo import simulate_price_paths, summarize_simulation
 from memory.decision_log import log_decision, read_recent_decisions
+from scripts.refresh_corpus import refresh  
 
 import pandas as pd
 import json
@@ -118,6 +119,13 @@ class Orchestrator:
         }
 
     def _run_full_debate(self, query: str) -> dict:
+        holdings = pd.read_csv("data/sample_portfolio.csv") 
+        try:
+            added = refresh(holdings["ticker"].tolist())
+            print(f"[orchestrator] news refresh: {added} chunks added")
+        except Exception as e:
+            print(f"[orchestrator] news refresh failed, continuing with existing corpus: {e}")
+
         arguments = [agent.run({"query": query}) for agent in self.debate_agents.values()]
 
         judge_result = None
@@ -142,7 +150,6 @@ class Orchestrator:
                         arguments[i] = revised
                         break
 
-        holdings = pd.read_csv("data/sample_portfolio.csv")
         prices = pd.read_csv("data/price_history.csv", index_col=0, parse_dates=True)
         portfolio_returns = _get_portfolio_returns(holdings, prices)
 
