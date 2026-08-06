@@ -2,7 +2,7 @@ from agents.llm_client import call_llm
 from agents.debate.bull import BullAgent
 from agents.debate.bear import BearAgent
 from agents.debate.risk_parity import RiskParityAgent
-from agents.judge import JudgeAgent
+from agents.judge_agent import JudgeAgent
 from agents.data_analyst import DataAnalystAgent
 from agents.explainer import ExplainerAgent
 from simulation.monte_carlo import simulate_price_paths, summarize_simulation
