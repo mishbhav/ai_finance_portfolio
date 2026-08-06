@@ -1,11 +1,10 @@
+import streamlit as st
 import sys
 from pathlib import Path
 
-ROOT_DIR = str(Path(__file__).resolve().parent.parent)
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-
-import streamlit as st
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 from agents.orchestrator import Orchestrator
 
 st.set_page_config(page_title="Portfolio War Room", layout="centered")
@@ -38,6 +37,19 @@ if st.button("Analyze") and query:
     else:
         st.subheader("Bottom line")
         st.write(result["plain_summary"])
+
+        scope = result.get("simulation_scope", {"scope": "portfolio", "ticker": None})
+        scope_label = (
+            f"single holding — {scope['ticker']}"
+            if scope["scope"] == "single_ticker"
+            else "whole portfolio"
+        )
+        st.caption(f"📊 Simulation scope: {scope_label}")
+
+        if result.get("revision_log"):
+            with st.expander("🔄 Self-correction log"):
+                for entry in result["revision_log"]:
+                    st.write(entry)
 
         st.subheader("Simulation outlook")
         sim = result["simulation_summary"]

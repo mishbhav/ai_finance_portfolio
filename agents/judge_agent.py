@@ -13,7 +13,7 @@ class JudgeAgent(Agent):
 
         scored = []
         for arg in arguments:
-            result = score_argument(arg["argument"], arg["evidence"])
+            result = score_argument(arg["argument"], arg["evidence"],arg.get("evidence_metadata"))
             scored.append({**arg, **result})
 
         weak = [a for a in scored if a["score"] < self.REVISION_THRESHOLD]

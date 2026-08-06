@@ -7,7 +7,7 @@ SERVER_DIR = str(Path(__file__).resolve().parent.parent / "mcp_servers" / "funda
 if SERVER_DIR not in sys.path:
     sys.path.insert(0, SERVER_DIR)
 
-from tools import get_valuation_metrics, get_financial_health, get_fundamentals_summary
+from tools import get_valuation_metrics, get_financial_health, get_fundamentals_summary, get_analyst_sentiment
 
 
 class TestFundamentalsTools(unittest.TestCase):
@@ -75,6 +75,29 @@ class TestFundamentalsTools(unittest.TestCase):
         self.assertIn("dividends", result)
         mock_ticker_cls.assert_called_once()  # one yf.Ticker() call, not four
 
+    @patch("tools.yf.Ticker")
+    def test_get_fundamentals_summary_shape(self, mock_ticker_cls):
+        """Confirms the combined tool nests correctly, including the newer
+        analyst_sentiment category. Note: this now makes multiple yf.Ticker()
+        calls internally (valuation/growth/health/dividends share one _get_info
+        call, but analyst_sentiment's .recommendations access requires a
+        separate call) — see get_fundamentals_summary's docstring for why
+        this tradeoff was accepted."""
+        mock_instance = MagicMock()
+        mock_instance.info = {"trailingPE": 20.0, "forwardPE": 18.0}
+        mock_instance.recommendations = None
+        mock_ticker_cls.return_value = mock_instance
+
+        result = get_fundamentals_summary("CRISIL.NS")
+
+        self.assertIn("valuation", result)
+        self.assertIn("growth", result)
+        self.assertIn("financial_health", result)
+        self.assertIn("dividends", result)
+        self.assertIn("analyst_sentiment", result)  # NEW category, worth asserting explicitly
+        # No longer asserting a single yf.Ticker() call — analyst_sentiment's
+        # .recommendations access is a genuinely separate network operation,
+        # not something worth forcing into one call at the cost of complexity.
 
 if __name__ == "__main__":
     unittest.main()

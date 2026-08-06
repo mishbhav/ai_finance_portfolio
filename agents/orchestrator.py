@@ -2,7 +2,7 @@ from agents.llm_client import call_llm
 from agents.debate.bull import BullAgent
 from agents.debate.bear import BearAgent
 from agents.debate.risk_parity import RiskParityAgent
-from agents.judge_agent import JudgeAgent
+from agents.judge import JudgeAgent
 from agents.data_analyst import DataAnalystAgent
 from agents.explainer import ExplainerAgent
 from simulation.monte_carlo import simulate_price_paths, summarize_simulation
@@ -58,10 +58,6 @@ def _format_history(recent_decisions: list[dict]) -> str:
 
 
 def plan_query(query: str, recent_decisions: list[dict] = None) -> dict:
-    """Decides which execution path a query needs. Falls back to
-    'full_debate' on any parsing failure — a missed quick_lookup just costs
-    extra compute, but a missed full_debate could silently skip real
-    decision analysis. Better to over-deliver than under-deliver."""
     history_block = _format_history(recent_decisions)
     user_message = query + history_block
 
@@ -90,11 +86,6 @@ def plan_query(query: str, recent_decisions: list[dict] = None) -> dict:
 
 
 def identify_query_scope(query: str, held_tickers: list[str]) -> dict:
-    """Determines whether a query is about one specific holding or the
-    whole portfolio. Falls back to 'portfolio' on any parsing failure —
-    same reasoning as plan_query defaulting to full_debate: a wrongly
-    broad scope just means extra context in the simulation, but a wrongly
-    narrow scope could hide real portfolio-wide risk from the user."""
     prompt = SCOPE_PROMPT_TEMPLATE.format(tickers=", ".join(held_tickers))
 
     try:
@@ -126,9 +117,6 @@ def identify_query_scope(query: str, held_tickers: list[str]) -> dict:
 
 
 def _get_portfolio_returns(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.Series:
-    """Builds a single value-weighted daily return series for the whole
-    portfolio, using each holding's most recent price * shares as its
-    weight. Used when the debate is scoped to the whole portfolio."""
     held_tickers = holdings["ticker"].tolist()
     held_prices = prices[held_tickers]
 
@@ -143,8 +131,6 @@ def _get_portfolio_returns(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.S
 
 
 def _get_ticker_returns(ticker: str, prices: pd.DataFrame) -> pd.Series:
-    """Daily returns for a single holding — used when the debate is
-    scoped to one ticker rather than the whole portfolio."""
     return prices[ticker].pct_change().dropna()
 
 
@@ -190,6 +176,7 @@ class Orchestrator:
         arguments = [agent.run({"query": query}) for agent in self.debate_agents.values()]
 
         judge_result = None
+        revision_log = []
         for round_num in range(MAX_REVISION_ROUNDS):
             judge_result = self.judge.run({"query": query, "arguments": arguments})
 
@@ -197,6 +184,7 @@ class Orchestrator:
                 break
 
             weak_stances = [a["stance"] for a in judge_result["weak_arguments"]]
+            revision_log.append(f"Round {round_num + 1}: revised {', '.join(weak_stances)}")
             print(f"[orchestrator] round {round_num + 1}: revising {weak_stances}")
 
             for weak_arg in judge_result["weak_arguments"]:
@@ -234,5 +222,6 @@ class Orchestrator:
             "scored_arguments": judge_result["scored_arguments"],
             "simulation_summary": simulation_summary,
             "simulation_scope": scope,
+            "revision_log": revision_log,
             "plain_summary": explainer_result["plain_summary"],
         }
