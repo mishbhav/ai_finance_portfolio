@@ -7,7 +7,7 @@ from agents.data_analyst import DataAnalystAgent
 from agents.explainer import ExplainerAgent
 from simulation.monte_carlo import simulate_price_paths, summarize_simulation
 from memory.decision_log import log_decision, read_recent_decisions
-from scripts.refresh_corpus import refresh  
+from scripts.refresh_corpus import refresh
 
 import pandas as pd
 import json
@@ -31,6 +31,20 @@ do not override your judgment on the current query.
 Respond with ONLY valid JSON: {"plan": "quick_lookup" or "full_debate", "reasoning": "<one sentence>"}"""
 
 FALLBACK_PLAN = {"plan": "full_debate", "reasoning": "Defaulted to the thorough path after a planning error."}
+
+SCOPE_PROMPT_TEMPLATE = """You are a query-scope classifier for a portfolio
+analysis system. The user holds these tickers: {tickers}
+
+Given a query, decide whether it's asking about ONE specific holding, or
+about the portfolio as a whole (including questions that mention a sector
+or theme spanning multiple holdings, e.g. "should I rebalance out of tech").
+
+Respond with ONLY valid JSON:
+{{"scope": "single_ticker", "ticker": "<exact ticker from the list above>"}}
+or
+{{"scope": "portfolio", "ticker": null}}"""
+
+FALLBACK_SCOPE = {"scope": "portfolio", "ticker": None}
 
 
 def _format_history(recent_decisions: list[dict]) -> str:
@@ -75,10 +89,46 @@ def plan_query(query: str, recent_decisions: list[dict] = None) -> dict:
         return FALLBACK_PLAN.copy()
 
 
+def identify_query_scope(query: str, held_tickers: list[str]) -> dict:
+    """Determines whether a query is about one specific holding or the
+    whole portfolio. Falls back to 'portfolio' on any parsing failure —
+    same reasoning as plan_query defaulting to full_debate: a wrongly
+    broad scope just means extra context in the simulation, but a wrongly
+    narrow scope could hide real portfolio-wide risk from the user."""
+    prompt = SCOPE_PROMPT_TEMPLATE.format(tickers=", ".join(held_tickers))
+
+    try:
+        raw_response = call_llm(system_prompt=prompt, user_message=query)
+        cleaned = raw_response.strip()
+
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL)
+        stripped = match.group(1) if match else cleaned
+
+        parsed = json.loads(stripped)
+
+        if not isinstance(parsed, dict) or "scope" not in parsed:
+            raise ValueError("Missing 'scope' key")
+        if parsed["scope"] not in ("single_ticker", "portfolio"):
+            raise ValueError(f"Unexpected scope value: {parsed['scope']}")
+
+        ticker = parsed.get("ticker")
+        if parsed["scope"] == "single_ticker":
+            if ticker not in held_tickers:
+                raise ValueError(f"LLM named ticker '{ticker}' not in held tickers")
+        else:
+            ticker = None
+
+        return {"scope": parsed["scope"], "ticker": ticker}
+
+    except Exception as e:
+        print(f"[orchestrator] scope detection failed, defaulting to portfolio: {e}")
+        return FALLBACK_SCOPE.copy()
+
+
 def _get_portfolio_returns(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.Series:
     """Builds a single value-weighted daily return series for the whole
     portfolio, using each holding's most recent price * shares as its
-    weight. This is what the Monte Carlo layer simulates forward."""
+    weight. Used when the debate is scoped to the whole portfolio."""
     held_tickers = holdings["ticker"].tolist()
     held_prices = prices[held_tickers]
 
@@ -90,6 +140,12 @@ def _get_portfolio_returns(holdings: pd.DataFrame, prices: pd.DataFrame) -> pd.S
     daily_returns = held_prices.pct_change().dropna()
     portfolio_returns = (daily_returns * weights).sum(axis=1)
     return portfolio_returns
+
+
+def _get_ticker_returns(ticker: str, prices: pd.DataFrame) -> pd.Series:
+    """Daily returns for a single holding — used when the debate is
+    scoped to one ticker rather than the whole portfolio."""
+    return prices[ticker].pct_change().dropna()
 
 
 class Orchestrator:
@@ -119,12 +175,17 @@ class Orchestrator:
         }
 
     def _run_full_debate(self, query: str) -> dict:
-        holdings = pd.read_csv("data/sample_portfolio.csv") 
+        holdings = pd.read_csv("data/sample_portfolio.csv")
+        held_tickers = holdings["ticker"].tolist()
+
         try:
-            added = refresh(holdings["ticker"].tolist())
+            added = refresh(held_tickers)
             print(f"[orchestrator] news refresh: {added} chunks added")
         except Exception as e:
             print(f"[orchestrator] news refresh failed, continuing with existing corpus: {e}")
+
+        scope = identify_query_scope(query, held_tickers)
+        print(f"[orchestrator] simulation scope: {scope['scope']} ({scope.get('ticker') or 'whole portfolio'})")
 
         arguments = [agent.run({"query": query}) for agent in self.debate_agents.values()]
 
@@ -151,7 +212,11 @@ class Orchestrator:
                         break
 
         prices = pd.read_csv("data/price_history.csv", index_col=0, parse_dates=True)
-        portfolio_returns = _get_portfolio_returns(holdings, prices)
+
+        if scope["scope"] == "single_ticker":
+            portfolio_returns = _get_ticker_returns(scope["ticker"], prices)
+        else:
+            portfolio_returns = _get_portfolio_returns(holdings, prices)
 
         paths = simulate_price_paths(portfolio_returns, num_simulations=1000, num_days=252, initial_value=100.0)
         simulation_summary = summarize_simulation(paths)
@@ -160,6 +225,7 @@ class Orchestrator:
             "query": query,
             "decision": judge_result["decision"],
             "simulation_summary": simulation_summary,
+            "simulation_scope": scope,
         })
 
         return {
@@ -167,5 +233,6 @@ class Orchestrator:
             "decision": judge_result["decision"],
             "scored_arguments": judge_result["scored_arguments"],
             "simulation_summary": simulation_summary,
+            "simulation_scope": scope,
             "plain_summary": explainer_result["plain_summary"],
         }
